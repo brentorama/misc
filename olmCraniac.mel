@@ -1,0 +1,502 @@
+//FX Craniac by Brent Forrest 2016
+
+global proc float[] returnColor(int $ver, float $c, matrix $p){
+	//return either grey or a value from the color matrix $p
+	float $color[2];
+	int $r = ($ver -1);
+	if ($ver == 1){$color = {$c, $c, $c};}
+	else{$color = {$p[$r][0], $p[$r][1], $p[$r][2]};}
+	return $color;
+}
+
+global proc createTxtFile(string $dir, string $file){
+	string $command, $unlockIt, $unlockDir;
+    $command = generateCommand("makeTxtFile", $file);
+    $unlockIt = generateCommand("unlock", $file);
+    $unlockDir = generateCommand("unlock", $dir);
+	system $command; 
+	system $unlockDir; 
+	system $unlockIt;
+}
+
+global proc doNotes(string $proj, string $shot, string $ep, string $user, int $i, float $c, string $which){
+	float $time = pleaseWait(0);
+	string $dateTime = (`date -sd`)+" "+(`date -st`) + " \n\b";
+	string $unlockDir;
+	string $share = `text -q -l "OFXtools|mainBT|toggles|share"`;
+	string $authorized[] = {"yoshizawa", "hirayama", "matthew", "forrest"};
+	string $dept = `optionMenu -q -v "OFXtools|mainBT|toggles|dept"`;
+	$user = localUser();
+    if (($which == "asset") && (!stringArrayContains($user, $authorized))){
+    	error "Unauthorized access detected, auto destruct initiated";
+	}else{
+		string $dir = ($share+$proj+"/lib/"+$dept+"/shotInfo/"+$ep);
+		if ($proj == "SNAT01") $dir = ($share+$proj+"/reflib/"+$dept+"/shotInfo/"+$ep);
+		if (!`filetest -f $dir`){
+			sysFile -makeDir ($dir); 
+			$unlockDir = generateCommand("unlock", $dir);
+		}
+		system $unlockDir;
+		string $field = ("fx_Craniac|top|main|list|"+$which+$i);
+		string $noteDir = ($dir+"/"+$shot);
+		string $noteFile = ($noteDir+"/"+$which+".txt");
+		if (!`scrollField -q -ed $field`){
+			scrollField -e -ed 1 -bgc 0.9 0.9 0.9 $field;
+			scrollField -e -it $dateTime -ip 1 $field;
+		    if (!`filetest -f $noteFile`){
+		    	sysFile -makeDir ($noteDir); 
+		   		createTxtFile ($noteDir, $noteFile);
+	   		} 
+		}else{ 
+		    scrollField -e -ed 0 -bgc $c $c $c $field;
+		    string $body = `scrollField -q -tx $field`;
+		    string $clearit = generateCommand ("deleteIt", $noteFile);
+		    system $clearit;
+		    $fileId=`fopen $noteFile`;
+		    fprint $fileId $body;
+		    fclose $fileId; 
+	    }
+    }
+    	pleaseWait($time);
+}
+
+global proc doStatus (int $i, string $proj, string $shot, string $ep, float $c){
+	// color matrix p stores palette
+	matrix $p[10][3] = <<0.2,0.2,0.2;0.6,0.7,0.5;1,0.6,0;0.8,0.1,0;0.4,0.3,0.5;0.3,0.7,0;0,0.4,0;0.3,0.4,0.5;0.1,0.6,0.2;0.2,0.2,0.2>>;
+	//replace this with a color sampler in the future
+	string $dept = `optionMenu -q -v "OFXtools|mainBT|toggles|dept"`;
+	string $share = `text -q -l "OFXtools|mainBT|toggles|share"`;
+	string $lib = "/lib/";
+	if ($proj == "SNAT01") $lib = "/reflib/";
+		string $dir = ($share+$proj+$lib+$dept+"/shotInfo/"+$ep);
+	string $verField = ("fx_Craniac|top|main|list|verColumn"+$i+"|status");
+    string $verDir = ($dir+"/"+$shot);
+    string $verFile = ($verDir+"/ver.txt"); 
+
+	float $col[2];
+	int $ver = `optionMenu -q -sl $verField`; 
+	$col = returnColor ($ver, $c, $p);
+	optionMenu -e -bgc $col[0] $col[1] $col[2] $verField;
+
+	if (!`filetest -f $verFile`){
+		sysFile -makeDir ($verDir); 
+		createTxtFile ($verDir, "/ver.txt");
+	} else {
+		string $clearit = generateCommand("deleteIt", $verFile);
+		system $clearit;
+	}
+	$fileId=`fopen $verFile`;
+	fprint $fileId $ver;
+	fclose $fileId; 
+	updateStatus;
+}
+
+//update the status bar at the top of the craniac window
+
+global proc updateStatus(){
+	string $b[];
+	float $width[], $vals[], $multi;
+	$multi = 580;
+	string $status[] = {"assigned","wip","check","retake","hold","approved","upload","render","done"};
+	$shots = `text -q -l fx_Craniac|top|shotsText`;
+	$shotsArray = stringToStringArray ($shots, ",");
+	$size = `size $shotsArray`;  
+	for ($i=0;$i<$size;$i++){
+		$b[$i] = (`optionMenu -q -sl ("fx_Craniac|top|main|list|verColumn"+$i+"|status")`+", ");
+	}
+	if ($size) $multi = (585 / $size);
+	for ($i =1; $i <10;$i++){
+		string $one = ("python \"["+`stringArrayToString $b ""`+"].count("+$i+")\"");
+		$vals[$i] = (`eval $one`);
+		$width[$i] = ($vals[$i] * $multi + 1);
+		string $text = ($status[$i-1]+" "+$vals[$i]);
+	   	text -e -w $width[$i] -h 10 -l $text -ann $text ("fx_Craniac|top|toggles|progressBar|t"+$i);	
+	}
+}
+
+//open the selected shot from Craniac with a save prompt
+
+global proc openMe(int $i, string $shot, string $dir, string $title, string $proj, int $wv){
+	python ("import maya.cmds as cmds");
+	string $versions[] = {"|version", "|vVersion"};
+	string $scenes[] = {"/workScenes/", "/scenes/"};
+	string $filePy = `python ("cmds.file( query=True, shn=True, sn=True)")`;
+    int $go = 1;
+    string $menu = ("fx_Craniac|top|main|list|verColumn"+$i+$versions[$wv]);
+    string $dept = `optionMenu -q -v "OFXtools|mainBT|toggles|dept"`;
+    string $ver = `optionMenu -q -value $menu`;
+    string $file =						($dir+"/"+$shot+"/"+$dept+"scenes/Maya"+$scenes[$wv]+$title+"."+$ver+".ma");
+    if ($proj == "SNAT01")			{$scenes[$wv] = `tolower $scenes[$wv]`;
+							 $file = 	($dir+"/"+$shot+"/"+$dept+"scenes"+$scenes[$wv]+$title+"."+$ver+".ma");}//handler for SNAT01 filescenes naming differnece
+    if (!`filetest -f $file`){print ("\nNo such file "+$file);}else{
+        if (`file -q -mf`){
+            $doSave = `confirmDialog -title ("Open "+$title+$ver) -m ("Save "+$filePy+ " first?") -b "Save" -b "Save As" -b "Don't save" -b "Cancel"-db "Cancel"-cb "Cancel" -ds "Cancel"`;
+            if ($doSave == "Save"){file -s;}
+            if ($doSave == "Save As"){$result = `fileDialog2 -dialogStyle 2`;file -rn $result;file -s;} 
+            if ($doSave == "Cancel"){$go = 0;}
+        }
+    if ($go){file -o -f $file;
+    	string $user = localUser();
+    	logIt($user, ("Open File "+$file));
+    	if (`window -q -ex OFXtools`) 
+    		listThoseFX();
+			string $directory = pathpart($file, 2);
+			setProject ($directory);
+		}
+	}
+}
+
+// return to the scroll position after updating the window
+// Update the proj and ep of both windows
+
+global proc updateList(int $i){
+	float $time = pleaseWait(0);
+	string $ep = `optionMenu -q -value fx_Craniac|top|toggles|ep`;
+	string $proj = `optionMenu -q -value fx_Craniac|top|toggles|proj`;
+	string $craniacUser = `optionMenu -q -value fx_Craniac|top|toggles|user`;
+	string $mainUser = `text -q -l OFXtools|mainBT|helpFrame|info|user`;
+	string $user[] = {$mainUser, $craniacUser};
+	if($user[0] == $user[1]) {
+		optionMenu -e -value $proj OFXtools|mainBT|toggles|proj;
+   		listEpShots(0);
+		optionMenu -e -value $ep OFXtools|mainBT|toggles|eppy;
+	}
+	string $this = ("fxCraniac(\"1\",\""+$proj+"\",\""+$ep+"\", \""+$user[$i]+"\")");
+	int $scr[] = `scrollLayout -q -sav fx_Craniac|top|main`;
+	eval $this;
+	scrollLayout -e -sbp down $scr[0] fx_Craniac|top|main;
+	optionMenu -e -value $craniacUser fx_Craniac|top|toggles|user;
+	//listUserEps();
+    optionMenu -e -value $proj fx_Craniac|top|toggles|proj;
+    listEpShots(1);
+	optionMenu -e -value $ep fx_Craniac|top|toggles|ep;
+	pleaseWait($time);
+}
+
+//list users in OLM, add local user tot he top of the list and excluse local user from the remaining list.
+
+global proc string[] listUsers(){
+    string $home = `text -q -l "OFXtools|mainBT|toggles|home"`;
+	string $list[];
+	string $userDirs[] = returnDirs($home);
+	string $localUser = localUser();
+	$list[0] = $localUser;
+	$list[1] = "MULTI";
+	for ($one in $userDirs){
+	if ($one != $localUser){
+		$list[`size $list`] = $one;
+		}
+	}
+	return $list;
+}
+
+global proc playMovie(string $dir,string $shot,string $dept,string $ver,string $title, int $i){
+	string $command, $movies[];
+	int $go = 1;
+	string $proj = `optionMenu -q -value fx_Craniac|top|toggles|proj`;
+	string $subDir = "/Maya/";
+	if ($proj == "SNAT01") $subDir = "/";
+	string $dirShotDept = ($dir+"/"+$shot+"/"+$dept+"scenes"+$subDir+"movies/");
+	string $movie = ($dirShotDept+$ver+"/"+$title+$ver+".mov");
+	if (`filetest -f $movie`){
+		$command = ("/usr/local/djv/bin/djv_view "+$movie+" >/dev/null 2>&1 &");
+	}else{
+		string $folders[] = returnDirs($dirShotDept);
+		for ($one in $folders){
+			string $list[] = `getFileList -fld ($dirShotDept+$one) -fs "*.mov"`;
+				for ($item in $list){
+					$movies[`size $movies`] = ($dirShotDept+$one+"/"+$item);
+				}
+			}	
+		if (`size $movies`){		
+			$command =  ("/usr/local/djv/bin/djv_view "+$movies[(`size $movies`-1)]+" >/dev/null 2>&1 &");
+		}else{
+    		errorRed;
+    		$go =0;
+    		print ("There are no movie files in "+$dirShotDept);
+		}
+	}
+	if ($go) {system($command);}
+}
+
+global proc string[] listShots(int $i, string $proj, string $user, string $episode){ 
+    string $users[], $listShots[], $base, $path, $listEps[], $myShots[], $seq;
+    string $home = `text -q -l "OFXtools|mainBT|toggles|home"`;
+    if ($user == "MULTI"){$users = {"forrest","matthew","yosizawa","min","miyajima","hirose"};}
+    else{$users[0] = $user;}
+    int $size;
+	string $projMenu[] = {"OFXtools|mainBT|toggles|proj", "fx_Craniac|top|toggles|proj"};
+	$base = `optionMenu -q -ann $projMenu[$i]`;
+	$seq = "seq/";
+	$path = ($base+"seq/");	//AD PATH+scn
+	if (!`filetest -d $path`){ $path = ($base + "scn/"); $seq = "scn/";}
+   
+    if ($episode == "all"){
+        $listEps = returnDirs($path);
+        }else{
+        $listEps[0] = $episode;
+        }
+    for ($one in $users){
+    	for ($ep in $listEps){
+    		clear $myShots;
+		    string $dir = ($path+$ep+"/");
+		    string $scn = ($base+"/scn/"+$ep+"/");
+		    if (!`filetest -d $dir`) {$dir = $scn;}
+		    if (!`filetest -d $dir`){
+		        print ("\nEpisode "+$dir+" doesn't exist on "+$one+"'s drive");
+		    }else{
+		        string $list[] =returnDirs($dir);    
+		        for ($item in $list){$myShots[`size $myShots`] = ($item+", "+$one+", "+$ep+", "+$seq+", "+$base);}
+		        int $size = `size $myShots`;
+				appendStringArray($listShots, $myShots, $size);
+		    }
+	    }
+    }
+	//print $listShots;
+    return $listShots;
+}
+
+//build the craniac window
+//initialize
+
+global proc fxCraniac(int $which, string $proj, string $epIn, string $user){
+	string $myShots[], $base, $users[], $episode[], $buffer[], $frameCountDir, $image, $roots[], $sequences[], $shot, $noteFile, $title, $verFile, $status[], $playMov, $note[], $stat[], $asset[], $buffer[];
+	int $progress[], $size, $frameCount;
+	//store the names of possilbe shot status
+	$status = {"assigned","wip","check","retake","hold","approved","upload","render","done","shots"};
+	//store some colors
+	matrix $p[10][3] = <<0.2,0.2,0.2;0.6,0.7,0.5;1,0.6,0;0.8,0.1,0;0.4,0.3,0.5;0.3,0.7,0;0,0.4,0;0.3,0.4,0.5;0.1,0.6,0.2;0.2,0.2,0.2>>;
+	//a handler for a problem with Yoshizawas folder
+    if ($user == "yoshizawa"){$user = "yosizawa";}
+    string $ith = "iconAndTextHorizontal";
+    string $home = `text -q -l "OFXtools|mainBT|toggles|home"`;
+    string $share = `text -q -l "OFXtools|mainBT|toggles|share"`;
+    string $icons = `text -q -l "OFXtools|mainBT|toggles|icons"`;
+    string $salu = `text -q -l "OFXtools|mainBT|toggles|salu"`;
+    string $dept = `optionMenu -q -v "OFXtools|mainBT|toggles|dept"`;
+    string $listShots[] = listShots($which, $proj, $user, $epIn);   
+    $size = `size $listShots`;
+
+    //this creates the inital list of shots and the user assigned to shots 
+    
+	for ($i=0;$i<($size);$i++){
+		tokenize $listShots[$i] ", " $buffer; 
+		$myShots[`size $myShots`] = $buffer[0]; 
+		$users[`size $users`] = $buffer[1];
+		$episode[`size $episode`] = $buffer[2];
+		$sequences[`size $sequences`] = $buffer[3];
+		$roots[`size $roots`] = $buffer[4];
+	}	
+
+    $size = `size $myShots`;
+    
+    if (`window -q -ex fx_Craniac`){deleteUI fx_Craniac;}
+    window -t ($dept+ " " +$proj+" "+$epIn) fx_Craniac;   
+    string $shotsText = stringArrayToString ($myShots, ",");
+    columnLayout top;
+        text -vis 0 -l $shotsText shotsText;
+    setParent..;
+    	rowColumnLayout -nc 12 toggles;
+		    iconTextButton -ann "Refresh List"-w 50 -bgc 0.2 0.4 0 -hi ($icons+"reload.xpm") -i ($icons+"reloadBlack.xpm")-l "Refresh" -command "updateList(1)";
+		    string $listUsers[] = listUsers();
+			optionMenu -w 75 -cc "listUserEps(1)" user; 
+			for ($one in $listUsers){menuItem -label $one;}
+			string $projDirs[] = returnDirs($home+$user+"/proj/");
+			string $saluDirs[] = returnDirs($salu+$user+"/proj/");
+       	    string $projMenu =`optionMenu -w 70 -cc "listEpShots(1)" proj`;     	  
+			for ($one in $projDirs){
+				string $size =  ("label_"+`optionMenu -q -ni $projMenu`);
+				menuItem -label $one  -ann ($home+$user+"/proj/"+$one+"/") $size;
+			}
+			for ($one in $saluDirs){
+				string $size =  ("label_"+`optionMenu -q -ni $projMenu`);
+				menuItem -label $one  -ann ($salu+$user+"/proj/"+$one+"/") $size;	 	
+			}
+			optionMenu -w 70 ep; 
+			listEpShots(1);
+			rowColumnLayout -nc 10 -h 15 progressBar;
+			//color the progress bar
+			for ($n=0;$n<10;$n++){
+				float $do[2] = {$p[$n][0], $p[$n][1], $p[$n][2]};
+				text -l $status[$n] -bgc $do[0] $do[1] $do[2] -w 50 ("t"+($n+1));
+			}
+    	setParent..;
+    setParent..;  
+    
+    string $scrollLayout = `scrollLayout -w 910 -h 900 -hst 16 -vst 16 main`;
+    rowColumnLayout -numberOfColumns 6 -cw 100 260 list;
+    
+		for ($label in {"#","preview","shot","assets","notes",""}){text -l $label;}
+
+			for ($i = 0; $i < $size; $i++) {	//repeat this UI building command for every shot in shots				
+	
+			float $c = ((($i%2)*0.1)+0.2);  //this just colors the bg a repeating grey 
+			float $color[] = {$c, $c, $c};
+			float $stc[];
+			
+			string $shot = $myShots[$i];
+			string $usr = $users[$i];
+			string $ep = $episode[$i];	   
+			string $seq = $sequences[$i];
+			string $root = $roots[$i];
+			string $dir = ($root+$seq+$ep);
+			
+			//How most shows work
+			
+			string $epShot = ($ep+"_"+$shot);
+			string $infoDir = ($share+$proj+"/lib/"+$dept+"/shotInfo/"+$ep+"/"+$shot);
+			string $sceneFolder =  ($dir+"/"+$shot+"/"+$dept+"scenes/Maya/workScenes/");   
+			string $vFolder =  ($dir+"/"+$shot+"/"+$dept+"scenes/Maya/scenes/");   
+			string $imgDirs = ($dir+"/"+$shot+"/"+$dept+"scenes/Maya/images/");
+			string $imgName = ($proj+"_"+$epShot+"_"+$dept);
+			
+			//rules for other shows
+			
+		    if ($proj == "KON") $sceneFolder =  ($dir+"/"+$shot+"/"+$dept+"presets/scenes/");
+		    
+			if ($proj == "SNAT01") {
+				$imgDirs = ($dir+"/"+$shot+"/"+$dept+"scenes/images/");
+				$epShot = ($ep+$shot);
+				$imgName = ("/"+$proj+"_"+$epShot+"_"+$dept+".");
+				$sceneFolder = ($dir+"/"+$shot+"/"+$dept+"scenes/workscenes/");
+				$vFolder = ($dir+"/"+$shot+"/"+$dept+"scenes/scenes/");			
+				$imgName = ($proj+"_"+$epShot+"_"+$dept+"scenes");
+				$infoDir = ($share+$proj+"/reflib/"+$dept+"/shotInfo/"+$ep+"/"+$shot);
+				}
+			
+			string $versions[] = `getFileList -fld $sceneFolder -filespec ("*"+$shot+"*"+$dept+"*.ma")`;
+			string $vVersions[] = `getFileList -fld $vFolder -filespec ("*"+$shot+"*"+$dept+"*.ma")`;
+			$vVersions = `sort $vVersions`;
+
+			string $imgFolders[] = returnDirs($imgDirs) ;	
+			string $ex[] = anExists($proj, $ep, $shot);
+			
+			int $enabled = $ex[0];
+			int $st = 0;
+			float $brite = ($enabled*0.5); 
+			text -e -l (" "+$shot) OFXtools|mainBT|toggles|result;
+			refresh -cv;
+			columnLayout -bgc $c $c $c ("checkColumn"+$ep+$shot); 
+				for ($d in {0.0, 0.1, 0.2, 0.3, 0.4}){
+				float $bg = $d;
+				checkBox -bgc ($bg*0.8) 0.2 $bg -ebg  true -w 12 -l "" ("Check"+$d);   
+				}	 
+				text -l ($i+1) number;
+			setParent..;
+		
+			//find the latest version of the ma file and convert it to a version "v0-00" format
+		
+ 			int $size = `size $versions`;
+			int $max = `max 0 ($size-1)`;
+		    tokenize $versions[$max] "." $buffer;  
+		    string $ver = $buffer[1]; 
+
+	  		//find the latest render image for the thumbnail - render version may be different than maya verision, so we check folders starting with the latest
+	  		
+	  		int $try = (`size $imgFolders`);
+			while ($try > -1){
+		    	$image = ($imgDirs+$imgFolders[$try]+"/"+$imgName+"."+$imgFolders[$try]+".0001.jpg");
+		    	if (!`filetest -f $image`) {$try-=1; }else{$try = -1;}
+	    	}
+		    //create the image for the icon, or use the stand in if theres no image available.
+			if (`size $versions`){ 
+				if (!`filetest -f $image`){$image = ($share+$proj+"/tools/Maya/image/face.jpg");}
+			
+			// update this with a playMov command that quereies the version number and errors if file does not exist
+				iconTextButton -w 100 -h 75 -ann "Click to play latest movie" -i $image -c ("playMovie(\""+$dir+"\",\""+$shot+"\", \""+$dept+"\", \""+$ver+"\", \""+$imgName+"\", \""+$i+"\")");
+			}else{
+				button -l $ex[2] -en $enabled -c ("startScene (\""+$proj+"\",\""+$ep+"\", \""+$shot+"\")") -bgc $c ($c+$brite) $c;
+			}
+		
+			//read the shot info from the shared directory: Notes, version and status
+			//in the new version, combine all this info into one file that also has the frame count
+			
+			string $version = ("version"+$shot);	
+			$noteFile = ($infoDir+"/notes.txt");
+			if (`filetest -f $noteFile`){$note = `readThis($noteFile)`; $note[0] = `stringArrayToString $note ""`;}
+			$assetFile = ($infoDir+"/asset.txt");
+			if (`filetest -f $assetFile`){$asset = `readThis($assetFile)`;$asset[0] = `stringArrayToString $asset ""`;}
+			$statFile = ($infoDir+"/ver.txt");
+			if (`filetest -f $statFile`){$stat = `readThis($statFile)`;}else{$stat[0] = 1;}
+			$progress[$i] = $stat[0];
+			columnLayout -bgc $c $c $c ("verColumn"+$i); 	
+	
+	  		    text -w 95 -h 12 -align "left" -font "fixedWidthFont" -l ($ep+"_"+$shot);
+				text -w 95 -h 12 -align "left" -font "fixedWidthFont" -l ($usr);		
+				string $menu = `optionMenu  -bgc $c $c $c -w 95 "version"`;
+			
+		    
+			// find all the verisons of the scene and add them to the version list
+		
+			if (`size $versions`){ 
+				for ($one in $versions){ 
+					string $ver = `substitute "^[^.]*\\." $one ""`; 
+					$ver = `substitute ".ma" $ver ""`;     
+					menuItem -label $ver;
+				} 
+			}
+			    
+			string $vMenu = `optionMenu  -bgc $c $c $c -w 95 "vVersion"`;
+		    
+			if (`size $vVersions`){ 
+				for ($one in $vVersions){ 
+					string $ver = `substitute "^[^.]*\\." $one ""`; 
+					$ver = `substitute ".ma" $ver ""`;     
+					menuItem -label $ver;
+				} 
+			}
+		    				
+							
+			string $statMenu = `optionMenu -bgc $c $c $c -w 95 -en 1 -cc ("doStatus(\""+$i+"\",\""+$proj+"\",\""+$shot+"\", \""+$ep+"\", "+$c+")") status`;
+			for ($one in $status){if ($one != "shots"){menuItem -label $one;}}
+			if (`size $stat[0]`) {
+				$st = (int)$stat[0];
+				optionMenu -e -sl $st $statMenu;}
+			if (!$st){$stc = {$c, $c, $c};}else{$stc = returnColor ($st, $c, $p);}
+			optionMenu -e -bgc $stc[0] $stc[1] $stc[2] $statMenu;
+
+		setParent..;
+	
+	//add the editable text fields - one for all users and one for just the supervisors	
+	for ($one in {$menu, $vMenu}){
+		int $men = `optionMenu -q -ni $one`;
+		if ($men) {optionMenu -e -sl $men $one;}else{optionMenu -e -en 0 $one;}
+	}
+	
+
+	
+	string $assetCommand = ("doNotes(\""+$proj+"\",\""+$shot+"\", \""+$ep+"\", \""+$user+"\", "+$i+", "+$c+", \"asset\")");
+	scrollField -ww 1 -ec $assetCommand -ed 0 -bgc $c $c $c -w 120 -h 70 -tx $asset[0] ("asset"+$i);
+	
+	string $notesCommand = ("doNotes(\""+$proj+"\",\""+$shot+"\", \""+$ep+"\", \""+$user+"\", "+$i+", "+$c+", \"notes\")");
+	scrollField -ec $notesCommand -ed 0 -bgc $c $c $c -ww 1 -w 435 -h 70 -tx $note ("notes"+$i);
+	
+	columnLayout -bgc $c $c $c ("buttColumn_"+$i); 
+		iconTextButton -w 120 -bgc $c $c $c -st $ith -ann "Add Notes" -hi ($icons+"write.xpm") -i ($icons+"writeBlack.xpm") -label "add notes"-command $notesCommand ($shot+"addNotes");
+		rowColumnLayout - w 121 -nc 2 fileOptions;
+			
+			string $butCommand = 	("openMe(\""+$i+"\",\""+$shot+"\", \""+$dir+"\", \""+$imgName+"\", \""+$proj+"\", \"0\")");
+			string $vCommand = 		("openMe(\""+$i+"\",\""+$shot+"\", \""+$dir+"\", \""+$imgName+"\", \""+$proj+"\", \"1\")");
+			
+			button -h 25 -w 60-l " Open w " -ann $butCommand -command ($butCommand) ("Open"+$i);
+			button -h 25 -w 60-l " Open V " -ann $vCommand -command ($vCommand) ("OpenV"+$i);
+		setParent..;
+		string $var = "scenes/Maya\")";
+		if ($proj == "SNAT01")$var = "scenes\")";
+		if ($proj == "KON")$var = "presets\")";
+		string $openCommand = ("openFolder(\""+$dir+"/"+$shot+"/"+$dept+$var);
+		iconTextButton -w 120 -bgc $c $c $c -st $ith  -ann $openCommand -hi ($icons+"open.xpm") -i ($icons+"openBlack.xpm") -label "  Open Folder  " -command $openCommand ("OpenFolder"+$shot);
+	setParent..;
+	clear $note $stat $asset;
+	}
+    separator;button -en 0 -l "Multi Playblast" ;separator;separator;separator;
+    setParent..;
+    showWindow;  
+    updateStatus;
+    window -e -rtf 1 -s 1 fx_Craniac;   
+    text -e -l ("shots "+$size) ("fx_Craniac|top|toggles|progressBar|t10");	
+	text -e -l "" OFXtools|mainBT|toggles|result;
+	logIt($user, ("Craniac "+$proj+$epIn));
+	
+}
+

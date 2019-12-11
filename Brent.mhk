@@ -1,0 +1,151 @@
+//Maya Preference 2017 (Release 1)
+//
+//
+
+//
+// The runtime commands referenced by the hotkeys
+//
+runTimeCommand
+	-annotation "connect selected objects attribute to the first object selected plus channelbox hilight"
+	-category "Custom Scripts"
+	-hotkeyCtx ""
+	-commandLanguage "python"
+	-command ("import maya.cmds as cmd\n\ndef superConnectO():\n    obs = cmd.ls(sl=True)\n    selected = mel.eval('selectedChannelBoxAttributes')\n    for one in selected:\n        for i in range(1, len(obs)):\n            cmd.connectAttr('%s.%s' % (obs[0], one), '%s.%s' % (obs[i], one))\n\t\t\t\nsuperConnectO()")
+	superconnectO;
+
+runTimeCommand
+	-annotation "group with a proper name"
+	-category "Custom Scripts"
+	-hotkeyCtx ""
+	-commandLanguage "python"
+	-command ("import maya.cmds as cmd\nimport maya.mel as mel\nob = ['']\nob = cmd.ls(sl = True)\nif len(ob) == 0:\n\tmel.eval('CreateEmptyGroup')\nelse:\n\tgroupName = \"%s_GP\" % ob[0]\n\tcmd.group(ob, name = groupName)")
+	superGroupIt;
+
+runTimeCommand
+	-annotation "smartConnect_SOuP (Release)"
+	-category "Other items.User Marking Menus"
+	-hotkeyCtx ""
+	-commandLanguage "mel"
+	-command ("if (`popupMenu -exists tempMM`) { deleteUI tempMM; }")
+	smartConnect_SOuP_Release;
+
+runTimeCommand
+	-annotation "smartConnect_SOuP (Press)"
+	-category "Other items.User Marking Menus"
+	-hotkeyCtx ""
+	-commandLanguage "mel"
+	-command ("if (`popupMenu -exists tempMM`) { deleteUI tempMM; } popupMenu -button 1 -ctl false -alt false -allowOptionBoxes true -parent `findPanelPopupParent` -mm 1 tempMM; source \"C:/Users/brent/Documents/maya/2017/prefs//markingMenus/menu_smartConnect_SOuP.mel\"")
+	smartConnect_SOuP_Press;
+
+//
+// The name commands referenced by the hotkeys
+//
+nameCommand
+	-annotation "GraphEditorNameCommand"
+	-sourceType "mel"
+	-command ("GraphEditor")
+	GraphEditorNameCommand;
+
+nameCommand
+	-annotation "OutlinerWindowNameCommand"
+	-sourceType "mel"
+	-command ("OutlinerWindow")
+	OutlinerWindowNameCommand;
+
+nameCommand
+	-annotation "ConnectionEditorNameCommand"
+	-sourceType "mel"
+	-command ("ConnectionEditor")
+	ConnectionEditorNameCommand;
+
+nameCommand
+	-annotation "FreezeTransformationsNameCommand"
+	-sourceType "mel"
+	-command ("FreezeTransformations")
+	FreezeTransformationsNameCommand;
+
+nameCommand
+	-annotation "superGroupItNameCommand"
+	-sourceType "mel"
+	-command ("superGroupIt")
+	superGroupItNameCommand;
+
+nameCommand
+	-annotation "DeleteHistoryNameCommand"
+	-sourceType "mel"
+	-command ("DeleteHistory")
+	DeleteHistoryNameCommand;
+
+nameCommand
+	-annotation "NodeEditorWindowNameCommand"
+	-sourceType "mel"
+	-command ("NodeEditorWindow")
+	NodeEditorWindowNameCommand;
+
+nameCommand
+	-annotation "smartConnect_SOuP_PressNameCommand"
+	-sourceType "mel"
+	-command ("smartConnect_SOuP_Press")
+	smartConnect_SOuP_PressNameCommand;
+
+nameCommand
+	-annotation "smartConnect_SOuP_ReleaseNameCommand"
+	-sourceType "mel"
+	-command ("smartConnect_SOuP_Release")
+	smartConnect_SOuP_ReleaseNameCommand;
+
+nameCommand
+	-annotation "superconnectONameCommand"
+	-sourceType "mel"
+	-command ("superconnectO")
+	superconnectONameCommand;
+
+nameCommand
+	-annotation "HideSelectedObjectsNameCommand"
+	-sourceType "mel"
+	-command ("HideSelectedObjects")
+	HideSelectedObjectsNameCommand;
+
+//
+// The user hotkeys
+//
+//
+// The hotkey set
+//
+hotkeySet -source "Maya_Default" -current Brent;
+//
+// The hotkey contexts and hotkeys
+//
+hotkey -keyShortcut "g" -ctl -name ("superGroupItNameCommand");
+hotkey -keyShortcut "h" -ctl -name ("HideSelectedObjectsNameCommand");
+hotkey -keyShortcut "e" -name ("RotateToolWithSnapMarkingMenuNameCommand");
+hotkey -keyShortcut "e" -releaseName ("RotateToolWithSnapMarkingMenuPopDownNameCommand");
+hotkey -keyShortcut "n" -sht -name ("NodeEditorWindowNameCommand");
+hotkey -keyShortcut "#" -name ("GraphEditorNameCommand");
+hotkey -keyShortcut "d" -alt -sht -name ("");
+hotkey -keyShortcut "c" -ctl -sht -name ("superconnectONameCommand");
+hotkey -keyShortcut "f" -sht -name ("FreezeTransformationsNameCommand");
+hotkey -keyShortcut "End" -name ("DeleteHistoryNameCommand");
+hotkey -keyShortcut "c" -sht -releaseName ("");
+hotkey -keyShortcut "c" -sht -name ("ConnectionEditorNameCommand");
+hotkey -keyShortcut "8" -name ("smartConnect_SOuP_PressNameCommand");
+hotkey -keyShortcut "o" -sht -name ("OutlinerWindowNameCommand");
+hotkey -keyShortcut "8" -releaseName ("smartConnect_SOuP_ReleaseNameCommand");
+hotkey -keyShortcut "Return" -releaseName ("");
+hotkey -keyShortcut "9" -name ("");
+hotkeyCtx -type "Editor" -addClient "outlinerPanel";
+hotkeyCtx -type "Editor" -addClient "hyperShadePanel";
+hotkeyCtx -type "Editor" -addClient "nodeEditorPanel";
+hotkeyCtx -type "Editor" -addClient "profilerPanel";
+hotkeyCtx -type "Editor" -addClient "graphEditor";
+hotkeyCtx -type "Editor" -addClient "shapePanel";
+hotkeyCtx -type "Editor" -addClient "posePanel";
+hotkeyCtx -type "Editor" -addClient "hyperGraphPanel";
+hotkeyCtx -type "Editor" -addClient "polyTexturePlacementPanel";
+hotkeyCtx -type "Editor" -addClient "timeEditorPanel";
+hotkeyCtx -type "Tool" -addClient "texSculptCacheContext";
+hotkeyCtx -type "Tool" -addClient "SymmetrizeUVBrush";
+hotkeyCtx -type "Tool" -addClient "Unfold3DBrush";
+hotkeyCtx -type "Tool" -addClient "polyCutUV";
+hotkeyCtx -type "Tool" -addClient "texCutContext";
+hotkeyCtx -type "Tool" -addClient "sculptMeshCache";

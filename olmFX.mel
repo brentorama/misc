@@ -1,0 +1,576 @@
+global proc string generateCommand(string $command, string $dir){
+string $return;
+	string $os = `text -q -l "OFXtools|mainBT|helpFrame|info|os"`; 
+	if ($os == "linux64"){
+		if ($command == "unlock")		{$return = ("chmod -R ugo+rw "+$dir);}
+		if ($command == "path")			{$return = ("/afs/d3d/share/proj/");}
+		if ($command == "goHere")		{$return = ("nautilus --no-desktop --browser " +$dir);}
+		if ($command == "makeTxtFile")	{$return = ("cat > "+$dir+" >/dev/null 2>&1 &");}
+		if ($command == "deleteIt")		{$return = ("cp /dev/null "+$dir);}	
+		if ($command == "djv_view")		{$return = ("/usr/local/djv/bin/djv_view "+$dir+" >/dev/null 2>&1 &");}
+
+	}else{ //windows variant
+		$dir = substituteAllString($dir, "/", "\\");
+		if ($command == "unlock")		{$return = ("icacls "+$dir+" /grant Everyone:(OI)(CI)F"); }
+		if ($command == "path")			{$return = ("S:/proj/");}
+		if ($command == "goHere")		{$return = ($dir +" start ..");}
+		if ($command == "makeTxtFile")	{$return = ("type NUL > "+$dir);}
+		if ($command == "deleteIt")		{$return = ("del /f "+$dir);}	
+		if ($command == "djv_view")		{$return = ("C:\Program Files/... "+$dir+"something");}
+	}
+	return $return;			
+}
+
+global proc string[] readThis( string $filePath )
+{
+    string $body[];
+    if (`filetest -f $filePath`){
+        $fileId = `fopen $filePath "r"` ; 
+            string $nextLine = `fgetline $fileId` ;   
+            while (size($nextLine) > 0) {  
+                string $cleanLine = (strip($nextLine)+"\n") ;    
+                $body[size($body)] = $cleanLine ;  
+                $nextLine = `fgetline $fileId` ;   
+            }  
+        fclose $fileId;
+        return $body;
+    }else{
+        print ("that is not a readable file or directory "+ $filePath);
+    }
+}
+
+global proc string pathpart(string $dir, int $size){
+	int $i;
+	while ($i < $size){$dir = `dirname $dir`;$i++;}
+	return $dir;
+}
+
+global proc string localUser ()
+{
+    string $user, $os;
+    $os = `about -os`; 
+    if (`gmatch $os "linux*"`) {
+        $user = `getenv USERNAME`; 
+    }else{
+        $user = `getenv userName`; 
+    } 
+    return $user; 
+}
+
+global proc goTemp(){
+    string $goHere = ("nautilus --no-desktop --browser /usr/tmp");
+	system($goHere);
+}
+
+//List all the FX assets for a project
+//theres a big handler in here because SNAT01 uses the DH 
+
+global proc getFXlist(){
+    float $time = pleaseWait(0);
+    string $checkMe[];
+    string $projMenu = "OFXtools|mainBT|toggles|proj";
+    string $share = `text -q -l "OFXtools|mainBT|toggles|share"`;
+    string $proj = `optionMenu -q -value $projMenu`;
+    string $fxList = "OFXtools|mainBT|FXlist|FXcolumn|lister";
+    string $add[];
+    string $lib = "/lib";
+    string $dirname = "/Maya/scenes";
+    if ($proj == "KON" || $proj == "RUD") $dirname="/DH/scenes";
+    if ($proj == "SNAT01"){$lib = "/assets";$dirname="/DH/scenes";}
+    $filePath = ($share+$proj+$lib+"/FX/");
+    $getFXlist = returnDirs($filePath);
+    for ($one in $getFXlist){
+        $checkMe = `getFileList -fld ($filePath+$one+$dirname) -filespec ("*"+$one+"*.cur.ma")`;
+        if (`size $checkMe`) {
+            $add[`size $add`] = $one; 
+        }
+    }
+    textScrollList -e -ra $fxList;
+    for ($fx in $add){textScrollList -e -a $fx $fxList;}	
+    pleaseWait($time);	
+}
+
+//reference the selected asset - with another handler for SNAT01	
+
+global proc refThoseFX(string $which) {
+	string $user = localUser();
+    string $selected[], $chooseFiles[], $loadFiles[], $field, $folder, $refList;
+    string $share = `text -q -l "OFXtools|mainBT|toggles|share"`;
+	string $projMenu = "OFXtools|mainBT|toggles|proj";
+	$field = "OFXtools|mainBT|FXlist|FXcolumn|lister";
+    $refList = "OFXtools|mainBT|FXlist|FXcolumn|refLister";
+	$proj = `optionMenu -q -value $projMenu`;
+    string $filePath = ($share+$proj+"/lib/FX/");
+    string $dir = "/Maya";
+	if ($proj == "SNAT01"){
+		$filePath = ("/gfs/share/proj/"+$proj+"/assets/FX/");
+		$dir = "/DH";
+	}
+    $selected = `textScrollList -q -si $field`;
+    for ($one in $selected){
+        $folder = ($filePath+$one+$dir+"/scenes/");
+        $chooseFiles =`getFileList -fs "*cur.ma" -fld $folder`;
+        for ($file in $chooseFiles){
+            $loadFiles[(size($loadFiles))] = ($folder+$file);
+        }
+    }
+    for ($i = 0;$i<(size($selected));$i++){
+		if ($which == "ref"){ 
+			file -r -type "mayaAscii" -namespace ("FX"+$selected[$i]) -options "v=0;" $loadFiles[$i]; 
+			logIt($user, ("Referenced: "+$proj+" "+$selected[$i]));
+		}
+		if ($which == "import") {
+			file -i -type "mayaAscii" -namespace ("FX"+$selected[$i]) -options "v=0;" $loadFiles[$i];  
+			logIt($user, ("Imported: "+$proj+" "+$selected[$i]));
+		}         
+    }    
+	listThoseFX;
+}
+
+global proc listThoseFX(){
+    int $i = 1;
+    $refList = "OFXtools|mainBT|FXlist|FXcolumn|refLister";
+    string $FXinScene[] = `ls -rf "*FX*"`;
+    textScrollList -e -ra $refList;
+	for ($one in $FXinScene){
+    	$font = "boldLabelFont";
+    	$root = (substituteAllString($one, "RN", "")+":root");
+    	if (`objExists $root`){
+		    int $switch =  (`getAttr ($root+".v")`*-1)+1;
+		    if ($switch) $font = "smallFixedWidthFont";
+		    textScrollList -e -a $one $refList;
+		    $command = ("textScrollList -e -lf "+$i+" \""+$font+"\""+ $refList);
+		    eval $command;
+        }
+	$i++;
+	}  
+}
+
+global proc killFX(){
+    string $selected[];
+    $refList = "OFXtools|mainBT|FXlist|FXcolumn|refLister";
+    $selected = `textScrollList -q -si $refList`;
+    for ($one in $selected) {
+        file -rr -rfn $one;
+        if (objExists ($one+"*foster*")) {delete ($one+"*foster*");} 
+    }
+listThoseFX;
+}
+
+global proc chooseFX(){
+    string $resultFX[];
+    string $refList = "OFXtools|mainBT|FXlist|FXcolumn|refLister";
+    string $selectFX[] = `textScrollList -q -si $refList`;
+    for ($one in $selectFX){
+        $resultFX[(size($resultFX))] = (substituteAllString($one, "RN", "")+":CTL");
+        }
+    select -r $resultFX;
+}
+  
+global proc hideThoseFX(){
+    string $resultFX[];
+    string $refList = "OFXtools|mainBT|FXlist|FXcolumn|refLister";
+    string $selectFX[] = `textScrollList -q -si $refList`;
+    int $selectIndex[] = `textScrollList -q -sii $refList`;
+    for ($i=0;$i<`size $selectFX`;$i++){
+        string $command;
+        $resultFX[$i] = (substituteAllString($selectFX[$i], "RN", "")+":root");
+        int $switch =  (`getAttr ($resultFX[$i]+".v")`*-1)+1;
+        if ($switch) {
+            $command = ("textScrollList -e -lf "+$selectIndex[$i]+" \"boldLabelFont\""+ $refList);
+        }else{
+            $command = ("textScrollList -e -lf "+$selectIndex[$i]+" \"smallFixedWidthFont\""+ $refList);
+        }
+        eval $command;
+        setAttr ($resultFX[$i]+".v") $switch;
+    }
+}
+
+global proc enterCommand(string $in){
+    $field = "OFXtools|mainBT|CommandWindow|commandCol|userInput";
+    $history = "OFXtools|mainBT|CommandWindow|commandCol|history";
+    string $get, $command, $gets[], $commands[];
+    int $size;
+    if (!`size $in`){
+    	$get = `textField -q -tx $field`;    
+    }else{
+   		 $get = $in;
+	 }
+    $command = `tolower $get`;
+    $size = `textScrollList -q -ni $history`;
+    textScrollList -e -rii $size $history;
+    textScrollList -e -a $get $history;
+    textScrollList -e -a " " $history;
+    $size = `textScrollList -q -ni $history`;
+    textScrollList -e -sii $size $history;
+    if (`gmatch $command "*,*"`){
+		int $num = `tokenize $command "," $gets`;
+		tokenize $get "," $commands;
+		for ($i = 0;$i<$num;$i++){doCommand($gets[$i],$commands[$i], $field);}
+    }else{
+    	 doCommand($get,$command, $field);
+     }
+    setFocus $field;
+    $user = localUser();
+    logIt($user, ("EnterCommand: "+$get));
+}
+
+global proc comHistory(float $dir){
+    $field = "OFXtools|mainBT|CommandWindow|commandCol|userInput";
+    $history = "OFXtools|mainBT|CommandWindow|commandCol|history";
+    if ($dir){
+		$cur = `textScrollList -q -sii $history`;
+		float $size = `textScrollList -q -ni $history`;
+		float $new = ($dir+$cur[0]);
+		$clamp = `clamp 1 $size $new`;
+		textScrollList -e -sii $clamp $history;
+		$text = `textScrollList -q -si $history`;
+		textField -e -tx $text $field;
+	}else{
+		string $whatsNew = "\n\nWHAT'S NEW:\nSupport for SNAT01\nSupport for old C9T01 and RUD";
+		notifyGreen($whatsNew);
+	}
+    setFocus $field;
+
+}
+
+global proc craniacButton(int $i){
+	string $user = localUser();
+	float $time = pleaseWait(0);
+	$ep = `optionMenu -q -value OFXtools|mainBT|toggles|eppy`;
+	$proj = `optionMenu -q -value OFXtools|mainBT|toggles|proj`;
+	string $fxCraniac = ("fxCraniac (\""+$i+"\",\""+$proj+"\",\""+$ep+"\", \""+$user+"\")");
+	eval $fxCraniac;
+	optionMenu -e -value $proj OFXtools|mainBT|toggles|proj;
+	optionMenu -e -value $proj fx_Craniac|top|toggles|proj;
+    listEpShots(0);
+    listEpShots(1);
+	optionMenu -e -value $ep OFXtools|mainBT|toggles|eppy;
+	optionMenu -e -value $ep fx_Craniac|top|toggles|ep;
+	pleaseWait($time);
+}
+
+global proc colorMe(){
+    string $window = "colorBuddy|panel|";
+    for ($abc in {"A","B","C","D","E"}){
+        float $rgb[] = `colorSliderGrp -q -rgb ($window+$abc)`;
+        float $hsv[] = `colorSliderGrp -q -hsv ($window+$abc)`;
+        string $r = ($rgb[0]+" "+$rgb[1]+" "+$rgb[2]);
+        string $h = ($hsv[0]+" "+$hsv[1]+" "+$hsv[2]);
+        textField -e -tx $r ($window+"r"+$abc);
+        textField -e -tx $h ($window+"h"+$abc);
+        }
+}
+
+global proc colorBuddy(){
+	if (`window -ex colorBuddy`) deleteUI colorBuddy;
+	$i = 0.0;
+	window -w 700 -t "colorBuddy" colorBuddy;
+		rowColumnLayout -nc 3 panel;
+		for ($abc in {"A","B","C","D","E"}){
+		    textField -w 250 ("r"+$abc); 
+		    colorSliderGrp -cc colorMe -rgb $i $i $i $abc;
+		    textField -w 250 ("h"+$abc); 
+		    $i+=0.25;}
+		    setParent..;       
+		setParent..;
+		colorMe;
+	showWindow;
+}
+
+global proc listUserEps(int $i){
+	string $userMenu = "fx_Craniac|top|toggles|user";
+    string $user = `optionMenu -q -value $userMenu`;
+	string $home = `text -q -l "OFXtools|mainBT|toggles|home"`;
+	string $salu = `text -q -l "OFXtools|mainBT|toggles|salu"`;
+	string $projMenu = "fx_Craniac|top|toggles|proj";
+	string $saluDir = ($salu+$user+"/proj/");
+	string $afsDir = ($home+$user+"/proj/");
+	string $proj =  `optionMenu -q -value $projMenu`;
+	string $mItems[] = `optionMenu -q -ill $projMenu`;
+	if (`size $mItems`) deleteUI -mi $mItems;
+	string $listDir[] = returnDirs($afsDir);
+	string $saluDirs[] = returnDirs($saluDir);
+	for ($one in $listDir){
+ 		string $size =  ("label_"+`optionMenu -q -ni $projMenu`);
+   		menuItem -label $one -ann ($afsDir+$one+"/") -p $projMenu $size;
+   		} 
+	for ($one in $saluDirs){
+ 		string $size =  ("label_"+`optionMenu -q -ni $projMenu`);
+   		menuItem -label $one -ann ($saluDir+$one+"/") -p $projMenu $size;
+   		} 
+	if (stringArrayContains($proj, $listDir)){optionMenu -e -v $proj $projMenu;}
+	if (stringArrayContains($proj, $saluDirs)){optionMenu -e -v $proj $projMenu;}
+	listEpShots(1);
+}
+
+global proc listEpShots(int $i){
+	if (!$i) {updateVariables;getFXlist;}
+	string $dir;
+	string $home = `text -q -l "OFXtools|mainBT|toggles|home"`;
+	string $epMenu[] = {"OFXtools|mainBT|toggles|eppy", "fx_Craniac|top|toggles|ep"};
+	string $projMenu[] = {"OFXtools|mainBT|toggles|proj", "fx_Craniac|top|toggles|proj"};
+	string $userMenu = "fx_Craniac|top|toggles|user";
+	string $bTuser = `text -q -l "OFXtools|mainBT|helpFrame|info|user"`;
+	string $half = "OFXtools|mainBT|helpFrame|info|half";
+	string $mItems[] = `optionMenu -q -ill $epMenu[$i]`;
+	string $craniacUser =  $bTuser;
+	
+	if (`window -q -ex fx_Craniac`)  $craniacUser =  `optionMenu -q -value $userMenu`;
+	string $user[] = {$bTuser, $craniacUser};
+	if (`size $mItems`) {deleteUI -mi $mItems;}
+	refresh;
+	
+	int $value = (`optionMenu -q -sl  $projMenu[$i]`-1);
+	string $annotation = ($projMenu[$i]+"|label_"+$value);
+	string $baseDir = `menuItem -q -ann $annotation`;
+	string $proj = `optionMenu -q -v $projMenu[$i] `;
+	optionMenu -e -ann $baseDir $projMenu[$i];
+	$dir = ($baseDir+"seq/");
+	$scn = ($baseDir+"scn/"); 				//handler for idiotic naming dicrepancy
+	string $listDir[] = returnDirs($dir);
+	string $scnDir[] = returnDirs($scn);
+	appendStringArray($listDir, $scnDir, (`size $scnDir`));
+	if (`size $listDir`){
+		//$listDir[`size $listDir`] = "MULTI";	
+		$listDir[`size $listDir`] = "all";
+	}else{
+		$listDir[0] = "N/A";
+	}
+	for ($one in $listDir){menuItem -label $one -p $epMenu[$i];} 
+	int $val = `button -q -en $half`;
+	if ($proj == "C9P01" && $val){
+		$return = movSwitch();
+	}
+}
+
+global proc logIt(string $user, string $message){
+	string $name[];
+	string $path = `text -q -l "OFXtools|mainBT|toggles|path"`;
+	string $version =  ((`text -q -l OFXtools|mainBT|helpFrame|info|os`)+ " "+(`text -q -l OFXtools|mainBT|helpFrame|info|version`));
+	string $file[];
+	string $logFile = ($path+"log.txt");
+	string $pad = "            ";
+	string $localUser = localUser();
+	for ($one in {$user, $localUser})
+		{
+		int $size = `size $one`;
+		$name[`size $name`] = ($one + `substring $pad $size 12`);
+		}
+
+	string $input = ($name[1] + "\t" + `date` + "\t" + $version+ "\t" + $name[0] + "\t" +$message+"\n");
+	$fileId=`fopen $logFile "a"`;
+	fprint $fileId $input;
+	fclose $fileId;
+}
+
+//changes the file paths when you switch projects
+
+global proc updateVariables(){
+    string $vars[];
+    string $icons, $path, $home, $share, $salu;
+	string $homeMenu = "OFXtools|mainBT|toggles|home";
+	string $shareMenu = "OFXtools|mainBT|toggles|share";
+	string $iconMenu = "OFXtools|mainBT|toggles|icons";
+	string $pathMenu = "OFXtools|mainBT|toggles|path";
+	string $saluMenu = "OFXtools|mainBT|toggles|salu";
+	string $projMenu = "OFXtools|mainBT|toggles|proj";
+	string $os = `about -os`;
+	$proj = `optionMenu -q -value $projMenu`;
+	
+	if ($os == "linux64"){
+		$icons = "/afs/d3d/share/common/tools/FX/icons/";
+		$path = 	"/afs/d3d/share/common/tools/FX/";
+		$home = 	"/afs/d3d/home/";
+		$share =  "/afs/d3d/share/proj/";
+		if ($proj == "KON") $share = "/salu/proj/";
+		if ($proj == "SNAT01") $share = "/gfs/share/proj/";
+		if ($proj == "RUD") $share = "/salu/proj/";
+		$salu =	"/salu/home/";
+	}else{
+		$icons = "S:/common/tools/FX/icons/";
+		$path = 	"S:/common/tools/FX/";		
+		$home = 	"T:/";
+		$share = "S:/proj/";
+		if ($proj == "SNAT01") $share = "W:/proj/";
+		$salu = 	"Y:/";
+	}
+    text -e -l $icons $iconMenu;
+    text -e -l $path $pathMenu;
+    text -e -l $home $homeMenu;
+    text -e -l $share $shareMenu;
+    text -e -l $salu $saluMenu;
+    print ("\n"+$proj+"\n"+$home+"\n"+$share+"\n"+$path+"\n"+$salu+"\n");
+}
+
+global proc makeOFXtoolsUI(){
+
+	//initialize 
+	
+	string $path, $os, $youAreHere, $ith, $user, $home, $share, $salu;
+	string $icons, $ith, $cmds[], $curses[], $currentFile, $report, $cmdList, $userInput, $tField, $fxList, $refList, $localUserName, $getFXlist[], $projMenu, $token[], $curFile;
+	int $w = 330;
+    int $bW = ($w/3);
+    float $nC, $fC;
+    int $fps = 30;
+	$os = `about -os`;
+	$youAreHere = `file -q -sn`; 
+    string $directory = pathpart( $youAreHere, 2 );
+    $ith = "iconAndTextHorizontal";
+	$user = localUser();
+	$localUserName = `capitalizeString $user`;
+	$currentFile = ($localUserName+"'s oFX Toolbox");
+	string $curFile = `workspace -q -rd`;
+	tokenize $curFile "/" $token;
+	$curProj = $token[4];
+	string $animators[] = {"white","sayaveth","lazzarot","shashwat"};
+	int $isAnim = stringArrayContains($user, $animators);
+	
+	if ($os == "linux64"){
+		$icons = 	"/afs/d3d/share/common/tools/FX/icons/";
+		$path = 	"/afs/d3d/share/common/tools/FX/";
+		$home = 	"/afs/d3d/home/";
+		$share =  	"/afs/d3d/share/proj/";
+		if ($curProj == "SNAT01") $share = "/gfs/share/proj/";
+		$salu =		"/salu/home/";
+	}else{
+		$icons = 	"S:/common/tools/FX/icons/";
+		$path = 	"S:/common/tools/FX/";		
+		$home = 	"T:/";
+		$share = 	"S:/proj/";
+		if ($curProj == "SNAT01") $share = "W:/proj/";
+		$salu = 	"Y:/";
+	}
+	
+	$FXcommands = ("source \""+$path+"FX_commands.mel\"");
+	$commandS =  "source \"sprProjectToolNext.mel\"";  
+	$craniac = "source \""+$path+"FX_craniac.mel\"";
+	catchQuiet (`eval $commandS`);
+	eval $FXcommands;
+	evalEcho $craniac;
+	
+    $cmds = `readThis ($path+"fxCmdList.txt")`;
+    $cmds = sort(stringToStringArray ($cmds[0], " "));
+    
+	string $timeUnit = `currentUnit -q -t`;
+	if ($timeUnit == "film"){$fps = 24;}
+	
+    string $pbCommand = ("easyPB(1,"+$fps+")");
+	string $afsDir = ($home+$user+"/proj/");
+	string $saluDir = ($salu+$user+"/proj/"); 
+	
+	string $proj[] = returnDirs($afsDir);
+	string $saluProj[] = returnDirs($saluDir);
+	
+    //build the window
+    
+    if (`window -exists OFXtools`){deleteUI OFXtools;}
+    
+    window -vis 1 -rtf true -w $w -h 240 -s true -title $currentFile -iconName "oFX" OFXtools;
+        columnLayout mainBT;
+        	rowColumnLayout -nc 10 toggles;
+        	     text -w 1 -vis 0 -l $home home;
+        	     text -w 1 -vis 0 -l $share share;
+         	     text -w 1 -vis 0 -l $icons icons;
+          	     text -w 1 -vis 0 -l $path path;
+           	     text -w 1 -vis 0 -l $salu salu;
+         	     string $dept = `optionMenu -l "" dept`;
+    			 for ($one in {"FX","AN"}){menuItem -label $one;}
+    			 if ($isAnim) optionMenu -e -sl 2 $dept ;
+       			 $projMenu = `optionMenu -l $localUserName -cc "listEpShots(0)" proj`;
+       			 for ($one in $proj){
+       			 	string $note =  ("label_"+`optionMenu -q -ni $projMenu`); //This is how you add annotations to items in ana optionmenu
+       			 	menuItem -label $one -ann ($afsDir+$one+"/") $note;
+   			 	}
+    			 for ($one in $saluProj){
+    			 	string $note =  ("label_"+`optionMenu -q -ni $projMenu`);
+    			 	menuItem  -label $one -ann ($saluDir+$one+"/") $note;
+			 	}
+			 	
+				 int $gotProj = catchQuiet (`optionMenu -e -value $curProj $projMenu`);
+				 if ($gotProj) print "\nThe current scene file is not associated with any OLM project\n"; 
+				 
+       			 optionMenu -l "" eppy;
+       			 
+       			 button -w 60 -bgc 0 0.5 0 -l "  list  " -ann "List all of your shots in the Craniac window" -c "craniacButton(0)" craniac;
+       			 
+       			 text -l "" result;
+        	setParent..;
+        frameLayout -w $w -ann "Most common OLM and Sprite FX tools" -cl true -cc "window -e -h 22 -w 10 OFXtools" -collapsable true -label "SetupTools 共通ツール" setup;
+            rowColumnLayout -w $w -numberOfColumns 3 buttons;
+                iconTextButton -st "textOnly" -w $bW -bgc 0.4 0.4 0.7 -ann "CDVIS" -l "CDVis" -command "olm_ui_launchAM";
+                iconTextButton -st "textOnly" -w $bW -bgc 0.45 0.5 0.8 -ann "DirMaker" -l "DirMaker" -command "olm_ui_launchDirMaker";
+                iconTextButton -st "textOnly" -w $bW -bgc 0.7 0.5 1 -ann "Up Tool" -l "Up Tool" -command "olm_ui_launchUp";
+                iconTextButton -bgc 0.3 0.3 0.3 -st $ith -ann "Select two edges and click to make a rivet" -hi ($icons+"rivet.xpm") -i ($icons+"rivetBlack.xpm") -label "Rivet" -command ("source \""+$path+"rivet.mel\"");
+                iconTextButton -bgc 0.2 0.2 0.2 -st $ith -ann "Set the Project" -hi ($icons+"goodCon.xpm") -i ($icons+"goodConBlack.xpm") -label "Set Project" -command ("enterCommand(\"sp\")");
+                iconTextButton -bgc 0.3 0.3 0.3 -st $ith -ann "Converts sparkParticle to mesh" -hi ($icons+"party.xpm") -i ($icons+"partyBlack.xpm") -label "Party Curves" -command ("source \""+$path+"FX_partyCurves.mel\"");
+                iconTextButton -bgc 0.2 0.2 0.2 -st $ith -ann "Project Tool" -hi ($icons+"open.xpm") -i ($icons+"openBlack.xpm") -label "Project Tool" -command "sprProjectToolNext";
+                iconTextButton -bgc 0.3 0.3 0.3 -st $ith -ann "Open your current local scene folder" -hi ($icons+"open.xpm") -i ($icons+"openBlack.xpm") -label "Open Folder"-command ("enterCommand(\"open\")");
+                iconTextButton -bgc 0.2 0.2 0.2 -st $ith -ann "Quick Playblast" -hi ($icons+"playGreen.xpm") -i ($icons+"playBlack.xpm") -l "Playbetter"-command $pbCommand;
+                iconTextButton -bgc 0.3 0.3 0.3 -st $ith -ann "AttributeMan" -hi ($icons+"wrench.xpm") -i ($icons+"wrenchBlack.xpm") -l "Attribute Man"-command ("source \""+$path+"attMan.mel\"");
+                iconTextButton -bgc 0.2 0.2 0.2 -st $ith -ann "get color values in RGB or HSV" -hi ($icons+"smile.xpm")-i ($icons+"smileBlack.xpm") -l "ColorBuddy"-command "colorBuddy";
+                iconTextButton -bgc 0.3 0.3 0.3 -st $ith -ann "Quickly bake constrained objects" -hi ($icons+"b.xpm") -i ($icons+"bBlack.xpm") -l "Bake It"-command ("source \""+$path+"bakeItGood.mel\"");
+                iconTextButton -bgc 0.2 0.2 0.2 -st $ith -ann "Send to Qube" -i ($icons+"qubeBlack.xpm") -hi ($icons+"qube.xpm")  -label "Qube"-command  ("source \""+$path+"FX_qubeSubmit.mel\"");
+                iconTextButton -bgc 0.3 0.3 0.3 -st $ith -ann "Convert images to movie with djvView" -hi ($icons+"movie.xpm") -i ($icons+"movieBlack.xpm") -l "Make Movie"-command ("enterCommand(\"mov\")");
+            setParent ..;
+        setParent ..;
+       frameLayout -w $w -ann "Reference or unreference FX elements" -cl true -ec "listThoseFX()" -cc "window -e -h 10 -w 10 OFXtools" -collapsable true -label "FX assets 資産リスト " FXlist;
+       		columnLayout -h 18 buttons;
+       			radioButtonGrp -cal 1 "left" -nrb 2 -label "View" -labelArray2 "List" "Thumbnail" -cw2 20 20 -sl 1;
+   			setParent..;
+            rowColumnLayout -w $w -numberOfColumns 2 FXcolumn;
+				$fxList = `textScrollList -bgc 0.2 0.2 0.2 -ann "All the FX elements currently available (Type to quick select)" -fn "smallBoldLabelFont" -w ($w/2) -h 200 -numberOfRows 8 -allowMultiSelection true "lister"`;
+				$refList = `textScrollList -bgc 0.1 0.2 0.2 -ann "FX elements currently in the scene (Collapse menu to refresh)" -fn "boldLabelFont"-w ($w/2) -h 200 -numberOfRows 8 -allowMultiSelection true "refLister"`;
+        	setParent ..;     
+        	rowColumnLayout -w 400 -numberOfColumns 5 xtras;
+                button -w ($w/4) -bgc 0.5 0.1 0.0 -ann "Reference the selected FX" -l "Reference it" -command ("refThoseFX(\"ref\")") ;
+                button -w ($w/4) -bgc 0.51 0.2 0.1 -ann "Hide selected FX" -l "Hide" -command "hideThoseFX";
+                separator -vis 0;
+                button -w ($w/4) -bgc 0.52 0.3 0.2 -ann "Remove selected FX from shot" -l "Unreference" -command "killFX" ;
+                button -en 1 -w ($w/4) -bgc 0.53 0.4 0.3 -l "Import"  -command  ("refThoseFX(\"import\")");
+        	setParent OFXtools;  
+        frameLayout -w $w -parent mainBT -ann "Command Window" -ec "comHistory(0)" -cc "window -e -h 10 -w 10 OFXtools" -cl true -cll true -label "Commander コマンドライン" CommandWindow;  
+            columnLayout commandCol;
+				$report = `cmdScrollFieldReporter -bgc 0.1 0.1 0.2 -w $w -h 100 -clr -se 1 -sw 1 -sr 1 -sst 1 reporter`;
+            rowColumnLayout -w $w -h 18 -numberOfColumns 4 commandButtons;
+                iconTextButton -bgc 0.3 0.3 0.3 -st "iconOnly" -ann "up" -hi ($icons+"up.xpm") -i ($icons+"up.xpm") -command "comHistory(-1)";
+                iconTextButton -bgc 0.3 0.3 0.3 -st "iconOnly" -ann "down" -hi ($icons+"down.xpm") -i ($icons+"down.xpm") -command "comHistory(1)" ;
+                separator -w 225 -vis 0;
+                iconTextButton -bgc 0.6 0.6 0.6 -st "textOnly" -h 20 -w 60 -en 1  -l "help" -command ("enterCommand(\"help\")");
+            setParent..;
+		    	$userInput = `textField -aie 1 -w $w -ec "enterCommand(\"\")" -ann "Command window, type 'help' for a list of commands" userInput`;
+		    	$cmdList = `textScrollList -vis 0 -h 1 -w $w fxCommands`;
+		    	$historyList = `textScrollList -vis 0 -a " " -h 50 -w $w history`;
+        	setParent..;
+        setParent ..;  
+            frameLayout -labelVisible false -l "info" -parent mainBT helpFrame;
+	        	rowColumnLayout -nc 11 info;
+  	       			 separator -vis 0 -w  15;
+	      			 text -l $user user;
+	       			 separator -vis 0 -w  15;
+	       			 text -l $os os;
+ 	       			 separator -vis 0 -w  15;
+	       			 text -l (`about -p`) version;
+	       			 separator -vis 0 -w  15;
+	       			 text -l ("fps "+$fps) fps;
+	       			 text -l "   mov: ";
+	       			 button -w 30 -l "1/2" -en 1 -c ("enterCommand(\"movSwitch\")") half;
+	       			 button -w 30 -l "1:1" -en 0 -c ("enterCommand(\"movSwitch\")") full;
+       			 setParent..;
+            helpLine -h 14 -ann "This is the helpful help window" -bgc 0.3 0.3 0.3 -w $w -en 1 -parent helpFrame;   
+        setParent..;   
+    window -e -w $w -h 10 OFXtools;    
+    
+    showWindow OFXtools;    
+    textScrollList -e -sc "chooseFX" $refList;
+	getFXlist;
+	listThoseFX;
+	listEpShots(0);	
+	for ($cmd in $cmds){textScrollList -e -a $cmd $cmdList;}  
+	cmdScrollFieldReporter -e -clr $report;    
+	logIt($user, ($gotProj +" launched"));
+}
+makeOFXtoolsUI;
+
+catch (`python "from OLMPlayblaster import *"`);
+catch (`python "from OLMPlayblaster_Options import *"`) ; 

@@ -1,0 +1,166 @@
+COMMANDS:
+コマンド:
+
+clear	copy		combine	dal		
+help		info		init		lay
+lock		ls		make	mkdir
+mov		movdal	open		partytime
+pbmov	pbmovdal	playblast	selectOLMS
+setproj	size		start		tiff	
+today	unlock	hello
+
+For documetation and flags on a speicifc command, type "help 'command'" 
+eg: "help make" "help ls"...
+
+HOW TO USE:
+
+Most commands work based on the scene you currently have open.
+
+You can run consequetive commands by using commas.  Example:
+"pb, movdal, tiff, dal tiff, today" will do this:
+
+Playblast, then create movie and copy to dailies, then convert jpgs to tiffs, then copy tiffs to dailies, then open todays daily folder.
+
+特定のコマンドのドキュメントとフラグについては、 "help 'コマンド' 'を入力してください
+  例： "help make" "help ls" ...
+  賛辞のために「hello」と入力してください。
+ 
+  使い方：
+ 
+  ほとんどのコマンドは、現在開いているシーンに基づいて動作します。
+ 
+  余分な空白は問題ではなく、コマンドは大文字と小文字を区別しません。
+ 
+  commetasを使用して、結果的なコマンドを実行することができます。 例：
+  "pb、movdal、tiff、dal tiff、today"はこれを行います：
+ 
+  プレイブラストを作成し、ムービーを作成して日刊紙にコピーし、次にjpgをtiffに変換し、tiffを日刊紙にコピーしてから、今日の日替わりフォルダを開きます。
+ 
+
+BREAK
+
+/clear - use this to clear the command window history.  short form: clr
+///
+/copy -this command is not ready yet
+///
+/dal - copies the movie file of your currently open scene to the daily folder.  
+
+Will also create and unlock the necessary folders if required. 
+
+if you use the flag "dal tiff" it will copy your tiff folder to the dailies as well.
+///
+/hello - you can chat with the tool, run this to generate a random compliment and feel great about yourself!
+///
+/info - this command is not ready
+///
+/init - creates the root node if your project supports that. typing "root" does the same thing.
+///
+/lay - not sure
+///
+/lock - performs certain lock functions 
+
+"lock node" makes an object undeleteable, 
+"lock his" makes an object historically uninteresting, 
+"lock trs" and "lock vis" lock channels.
+///
+/ls - performs the lister - same as pressing the green button
+
+In the lister you can see all the shot folders youve created with the dirMaker.  If you havent made any folders then this will return empty.
+
+You can do many things from the lister, including opening your shots, checking the playblast and writing and reading notes from other departments
+
+You can change the status of your shot with the drop down menu, and you can quickly open the shot folder.
+
+In the future there will be added support for "Save As" to quickly version up your scene, or to duplicate a file for use in another shot
+
+You can also list shots for other artists in other departments and leave notes for other people to read.  
+
+To write notes, either click the "Add Notes" button or hit the numerical enter key while in the note field.  To save the note, hit the button again or hit Enter again.  
+The notes are saved to text filles.
+
+Future support will also inclue searching for "multi" artists and "multi" shots. Right now the only options are individual or all.
+
+Be careful when listing all, this tool can chug if there are more than 100 shots to list.  It's also pretty slow on windows.  I'm working on it.
+///
+/make - creates folders based on input.  This is good for making masterscenes.  
+Select any number of root nodes you wish to export, then type in "make asset1 asset2 asset3" in the same order you've selected.  
+
+The tool will then create the folders and export each selected asset to that folder. 
+
+It's a good idea to clean up any loose connections like constraints or a lot more will get exported than your asset.  
+
+You can use the "Bake It" button to eleiminate your constraints quickly. 
+
+You can use the command without selecting anything and it will just make the folders.
+///
+/mkdir - see "make"
+///
+/mov - convert your jpgs to a movie at half resolution.  Makes all the folders if they don't already exist
+
+You can use this command for files which are not currently open by typing "mov seq shot"  It gets your project from the one selected in the toolbox.
+
+This may not be working perfectly right now, but in the future you'll be able to batch convert movies by typing
+mov 010 0125, mov 010 0126...
+
+///
+/movdal - convert your jpgs to a movie at half resolution and copy the movie to dailies.  Makes all the required folders if they dont already exist.
+///
+/open - opens your current scene folder
+
+you can also use open ### #### to open another scene folder or
+open "username" or
+open "username" ### ### or
+open dailies or
+open temp - to open your temp folder
+
+///
+/partytime - launches the useful particle attribute sampler. 
+
+shortform: "pt"
+
+If you ever work with particles and have to type "getAttr" a lot this will save time.  It creates an nterface with a button for every attribute of the selected particle.  Click the button to print the desired atribute.
+Select a particle shape before running. It will work on any object, but is made for quickly getting at the pesky particle attributes.
+///
+/pb - same as hitting the playBetter button.  Create a playblast using the OLMplayblaster, then launch the image sequence in djv_view.  
+This will automatically set your start frame to 1 if your start frame is in the negatives.
+///
+/pbmovdal - playblast, then create a movie, then copy it to dailies.  Use this only if you're absolutley sure you don't need to check your playblast before submitting
+///
+/playblast - same as hitting the playBetter button.  Create a playblast using the OLMplayblaster, then launch the image sequence in djv_view.  
+///
+
+/selectolms - sometimes when exporting your effects you'll be required to select not only all the objects within the root node but also the "olmArrayMathematics" nodes as well.  
+
+This commands lists all the required nodes and selects them along with everything in the root node. 
+
+You can type "so" for short.
+///
+/setproj - sets the project to the directory two folders higher than the currently open scene.  
+
+As a note, jsut about every command and button in the tool automatically sets the project for you to avoid any of the usual screwups - however - if you open a file from the regular dialog or from CDvis, you will need to set your project. 
+If you open your files from the lister you wont have to worry about that.
+
+Same as hitting the setProj button.  
+
+You can also type "sp"
+///
+/size - get the size of your scenefile
+///
+/start - This converts an AN.cur.ma file to an FX.v00-00.ma file and does all the folder making and copying for you.  
+
+In the lister it is the same as pressing the "start" button for any shot.  
+
+To use this command you must type in using this format: "start PROJECT SEQ SCENE" -- actually this may not work because the commander converts all strings to lowercase.
+
+You can aslo punch this into the Mel commandline: startScene("MTT1", "BHF1", "0021") - it will only work if the AN.cur file exists.
+
+Say, if you've done all the effects for a shot, but the animation completely changes and you need to export your effects and start again from scratch.
+
+In that case, sdave your effects out to a temporary file, and type in startScene("MTT1", "BHF1", "0021") to the MEL line, that will create a new FX.00-00 file for you and you can then import your effects.
+///
+/tiff - converts your jpgs to tiffs.
+///
+/today - open todays daily folder
+///
+/unlock - used for unlocking any nodes, see "lock" for more details. "unlock his", "unlock node"
+///

@@ -1,0 +1,225 @@
+//list the cameras in the scene and add them to the UI, resize the window if required
+
+global proc listCamLayers(string $camList, string $layerList)
+{
+    string $cameras[], $renderLayers[], $renderList[];
+    $renderLayers = `ls -type "renderLayer"`;
+    int $size = `size $renderLayers`;
+    for ($i=0;$i<$size;$i++){
+        if ($renderLayers[$i] == "defaultRenderLayer"){$renderList[$i] = "masterLayer";
+        }else{
+        if (!`gmatch $renderLayers[$i] "*:defaultRender*"`){
+            $renderList[$i] = $renderLayers[$i];
+            }
+        }
+    }  
+    int $num = 0;
+    string $cams[] = `ls -cameras`;
+    for ( $cam in $cams ){if ( !`camera -q -startupCamera $cam` ) $cameras[$num++] = $cam;}
+    $cameras[$num++] = "perspShape";
+    for ($one in $cameras)  {textScrollList -e -a $one $camList;}
+    for ($one in $renderList) {if (`size $one`){textScrollList -e -a $one $layerList;}}
+    int $height = `max 120 ($size*13)`;
+    textScrollList -e -h $height $layerList;
+    window -e -wh 400 (150+$height) -s 0 qubeFX;
+}
+
+//get the info fomr the UI
+
+global proc infoMe(){
+    $n = "qubeFX|main|split|left|fields|";
+    $r = "qubeFX|main|split|right|scrolls|";
+    $ex = "qubeFX|main|xtras|advanced|";
+    string $result;
+    float $s = `textField -q -tx ($n+"start")`;
+    float $e = `textField -q -tx ($n+"end")`;
+    float $b = `textField -q -tx ($n+"by")`;
+    float $w = `textField -q -tx ($n+"width")`;
+    float $h = `textField -q -tx ($n+"height")`;
+    float $x = `textField -q -tx ($n+"x")`;
+    string $cam[] = `textScrollList -q -si ($r + "cams")`;
+    string $layers[] = `textScrollList -q -si ($r + "layers")`;
+    int $count = (($e - $s)/$b+1);
+    $lay = stringArrayToString ($layers, ", "); 
+    $result = ($count+" frames at "+($w*$x)+" x "+($h*$x)+ ".\n cam: "+$cam[0] + " layer: "+$lay);
+    text -e -l $result "qubeFX|main|results|message";    
+    textField -e -tx $count ($ex+"chunkF");  
+    print ("\n"+$result);  
+}
+
+//create the save dialogue
+
+global proc loadIt(string $what, string $fullName, int $type){
+    string $this = ("qubeFX|main|paths|"+$what);
+    string $dir[] = `fileDialog2 -ds 2 -cap $what -fm $type -okc "select" -startingDirectory $fullName -fileFilter ("Maya Ascii (*.ma)")`;
+    textField -e -tx $dir[0] $this;
+}
+
+//build the QUBE submitter window
+
+global proc qubeFX()
+{
+    string $youAreHere = `file -q -sn`; 
+    string $info[];
+    string $directory = pathpart( $youAreHere, 2 );
+    setProject ($directory);
+    $info = `setupPB`;
+    string $width = $info[10];
+    string $height = $info[11];
+    $w = 400;
+	if(!`pluginInfo -q -loaded Mayatomr`) loadPlugin Mayatomr;
+    int $s=`playbackOptions -q -min`;
+	int $e=`playbackOptions  -q -max`;
+	string $projDir = `workspace -q -rd`;
+    string $fullName = `file -q -sn`;
+    string $file = `file -q -sn -shn`;
+    string $user=`getenv "USER"`;	
+    string $cams, $layers, $sceneF, $outF;
+    $sceneF = "sceneF"; 
+    $outF = "outF";
+    if (`window -ex qubeFX`){deleteUI "qubeFX";}
+    window -rtf 1 -t "qubeFX" qubeFX;
+    columnLayout main;
+        rowColumnLayout -nc 3 paths;
+            text -l " Scene" scene;   textField -fn "boldLabelFont" -w ($w-63) -tx $fullName sceneF; 
+            button -c ("loadIt(\""+$sceneF+"\",\""+$fullName+"\", \"1\")") -l "..." -w 20;
+            text -l " Title" title;    textField -fn "boldLabelFont" -w ($w-63) -tx ("[Maya: "+$user+"] "+$file) titleF; 
+            separator -vis 0;
+            text -l " Output" output;  
+            textField -fn "boldLabelFont" -w ($w-63) -tx ($projDir+"renderImages") outF; 
+            button -c ("loadIt(\""+$outF+"\",\""+$projDir+"renderImages\", \"3\")") -l "..." -w 20;
+        setParent..;
+        rowColumnLayout -nc 2 -w $w split;
+            rowColumnLayout -w ($w/2.5) left;
+                rowColumnLayout -nc 4 fields;
+                    textField -cc "infoMe" -tx $s -w 30 -h 30 start; text -al "left" -l " Start ";
+                    textField -cc "infoMe"-tx $e -w 30 -h 30 end;  text -al "left" -l " End   ";
+                    textField -cc "infoMe"-tx $width -w 40 width; text -al "left" -l " w";
+                    textField -cc "infoMe"-tx $height -w 40 height; text -al "left" -l " h";
+                    textField -cc "infoMe"-tx "1" -w 30 -h 30 by;   text-al "left" -l " By   ";
+                    textField -cc "infoMe"-tx "1" -w 40 x; text -al "left" -l " scale";
+                    button -l "Reset" -c qubeFX; separator -vis 0 ;
+                    iconTextButton -w 60 -st iconAndTextHorizontal -i "renderGlobals.png" -c "unifiedRenderGlobalsWindow" ;
+                setParent ..;
+            setParent..;
+            rowColumnLayout -w ($w*0.8) right;
+                rowColumnLayout -nc 2 scrolls;
+                    $cams = `textScrollList  -sc "infoMe" -w ($w*0.25) -h 120 cams`;
+                    $layers = `textScrollList -sc "infoMe" -ams 1 -w ($w*0.4-30) -h 120 -fn "fixedWidthFont" layers`;
+                setParent..;
+            setParent..;
+        setParent..; 
+        columnLayout results;
+            separator -h 1; text -al "left" -l "" message;
+        setParent..;
+        listCamLayers($cams, $layers);
+        int $hW = `window -q -h qubeFX`;
+        int $bigW = $hW + 100;
+        string $info[]; 
+        get_qube_info($info);
+        //info[0] = cluster
+        //info[2] = priority
+        frameLayout -ec ("window -e -h "+$bigW+" qubeFX") -cc ("window -e -h "+$hW+" qubeFX") -w $w -cll true -cl true -label "xtras" xtras;  
+            rowColumnLayout -nc 2 basic;
+                text -l " Cluster" group;textField -fn "boldLabelFont" -w 120 -tx $info[0] groupF;
+  				text -en 0 -l " Group" cluster;textField -en 0 -fn "boldLabelFont" -w 120 -tx "" clusterF;			
+            setParent..;
+            rowColumnLayout -nc 4 advanced;
+                text -l " Priority" priority;textField -fn "boldLabelFont" -w 40 -tx $info[2] priF;
+                text -l " Chunk " chunk;
+                textField -fn "boldLabelFont" -w 40 -tx "5" chunkF;
+                separator -vis 0;            separator -vis 0;
+                text -l " CPUs " cpu; textField -fn "boldLabelFont" -w 40 -tx "5" cpuF;
+            setParent..;
+    	setParent..;
+    	rowColumnLayout -w ($w) -cal 1 "right" -nc 3 checkers;
+        	button -w 100 -l "Cancel" -c "deleteUI \"qubeFX\"" cancel;
+        	button -w 300 -l "SEND TO QUBE" -c "doQubeRender" ok;
+    	setParent..;
+    showWindow;
+    infoMe();
+}
+
+//find the rules for rendering on a per-project basis
+global proc get_qube_info(string $info[])
+{
+    string $projMenu = "OFXtools|mainBT|toggles|proj";
+	string $proj = `optionMenu -q -value $projMenu`;
+    python("import sys;sys.path.append(\"//afs/d3d/share/common/tools/OLMJobSubmitter/Rule\")");
+    python("from olm_qubeRule import olm_qubeRule; rule = olm_qubeRule()");
+   switch ($proj){
+    case "MTT1":
+        python("info = rule.get(\"2F\", \"COMMON\")");     
+        break;
+    case "C9P01":    
+        python("info = rule.get(\"8F\", \"LTFX\")");  
+        break;
+    case "SNAT01":
+        python("info = rule.get(\"8F\", \"LTFX\", \""+$proj+"\")"); 
+        break;
+    default:
+        python("info = rule.get(\"8F\", \"LTFX\")");  
+        break;
+    }
+    $info[0] = `python("info[\"cluster\"]")`;
+    $info[1] = `python("info[\"group\"]")`;
+    $info[2] = `python("info[\"priority\"]")`;
+    $info[3] = `python("info[\"instance\"]")`;
+    $info[4] = `python("info[\"maxinstance\"]")`;
+}
+
+
+// submit to qube based on info from the QUBE UI
+
+global proc doQubeRender(){
+    int $go = 1;
+    $u = "qubeFX|main|paths|";
+    $n = "qubeFX|main|split|left|fields|";
+    $r = "qubeFX|main|split|right|scrolls|";
+    $xb = "qubeFX|main|xtras|basic|";
+    $xa = "qubeFX|main|xtras|advanced|";
+    string $command;
+    float $start = `textField -q -tx ($n+"start")`;
+    float $end = `textField -q -tx ($n+"end")`;
+    float $by = `textField -q -tx ($n+"by")`;
+    float $w = `textField -q -tx ($n+"width")`;
+    float $h = `textField -q -tx ($n+"height")`;
+    float $x = `textField -q -tx ($n+"x")`;
+    string $scene = `textField -q -tx ($u+"sceneF")`;
+    string $out = `textField -q -tx ($u+"outF")`;
+    string $title = `textField -q -tx ($u+"titleF")`;
+    string $cam[] = `textScrollList -q -si ($r + "cams")`;
+    string $layers[] = `textScrollList -q -si ($r + "layers")`;
+    string $cluster = `textField -q -tx ($xb + "groupF")`;
+    string $group = `textField -q -tx ($xb + "clusterF")`;
+    int $priority = `textField -q -tx ($xa + "priF")`;
+    int $chunk = `textField -q -tx ($xa + "chunkF")`;
+    int $cpu = `textField -q -tx ($xa + "cpuF")`;
+    string $user= localUser();
+    string $projDir = `workspace -q -rd`;
+    string $lay = stringArrayToString ($layers, ","); 
+    
+    $command = ("qbsub --cluster "+$cluster+/*" --group "+$group+*/" --priority "+$priority+ " --cpus "+$cpu+" --range "+$start+"-"+$end+" --partition "+$chunk+" --name \""+$title+"\" --kind "+$user+" --requirements \"not (job.kind in host.duty.kind)\" --reservations \"host.processors=1\" /afs/d3d/share/common/olmsetup/2.2/setup/bootstrap/render/maya/render_linux_maya.sh olm_profile_C9T01_MAYA_2015_0001.xml -r file -mr:art -mr:aml -s QB_FRAME_START -e QB_FRAME_END -b "+$by+" -x "+$w*$x+" -y "+$h*$x+" -cam \""+$cam[0]+"\" -rd "+$out+" -rl \""+$lay+"\" -proj \""+$projDir+"\" \""+$scene+"\"");
+    
+	if (!`filetest -d $out`){error "\nThe ouput directory does not exist";$go = 0;}
+	if (!`filetest -f $scene`){error "\nThe Maya File does not exist";$go = 0;}
+	if (!`size $cam`){error "\nYou must select a Camera";$go = 0;}
+	if (!`size $lay`){error "\nYou must select a layer";$go = 0;}
+	if (`file -q -amf`){
+	    string $ask;
+	    $go = 0;
+	    $ask = `confirmDialog -t "File has not been saved" -m "Are you sure?"-b "Save and render" -b "Don't Save and render" -b "Cancel" -db "Yes"-cb "No" -ds "No"`;
+    	if ($ask == "Save and render") {SaveScene;$go = 1;}
+    	if ($ask == "Don't Save and render") {$go = 1;}
+    	if ($ask == "Cancel"){$go = 0;}
+	}
+    if ($go == 1){
+		string $result = `system $command`;
+		print $result;
+		deleteUI "qubeFX";
+		logIt($user, ("QubeRender "+$title));
+    }
+}
+
+qubeFX();
+
