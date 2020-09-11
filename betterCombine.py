@@ -1,15 +1,17 @@
 
-import maya.cmds as cmd
+import maya.cmds as mc
 def betterCombine():
-	these = cmd.ls(sl=True, s = True)
-	cA = cmd.connectAttr
+	t = mc.ls(sl=1, s=1)
+	cA = mc.connectAttr
+	cN = mc.createNode
+	m = "mesh"
 	i = 0
-	t = cmd.createNode('transform', n = 'mesh')
-	u = cmd.createNode('polyUnite', n = 'combine')
-	m = cmd.createNode('mesh', n = '%sShape' % t, p = t)
-	for one in these:
-		cA('%s.outMesh' % one, '%s.inputPoly[%s]' % (u,i))
-		cA('%s.worldMatrix[0]' % one, '%s.inputMat[%s]' % (u,i))
+	t = cN("transform", n = m)
+	u = cN("polyUnite", n = "combine")
+	m = cN(m, n = "%sShape" % t, p=t)
+	for o in t:
+		cA("%s.outMesh" % o, "%s.inputPoly[%s]" % (u,i))
+		cA("%s.worldMatrix[0]" % o, "%s.inputMat[%s]" % (u,i))
 		i+=1
-	cA('%s.output' % u, '%s.inMesh' % m, f = True)
+	cA("%s.output" % u, "%s.inMesh" % m, f=1)
 	
