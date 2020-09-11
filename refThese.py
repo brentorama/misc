@@ -16,3 +16,35 @@ def refThese(proj = '', ass = '', rigs =[''], num=0):
                    
 refThese('ams', 'rig', ['buildings'], 1)
 
+def GetRefs(self, node, refs=None):  
+    # Return the first reference nodes hit in a given node / node list
+    if refs == None:
+        refs = set([])         
+    nodes = cmds.ls(node)
+    for node in nodes:
+        isRef = cmds.referenceQuery(node, inr=True)
+        if isRef:
+            refs.add (cmds.referenceQuery(node, rfn=True))
+        else:
+            children = cmds.listRelatives(node)
+            refs = self.GetRefs(children, refs)
+    return refs
+
+
+def ImportRefs(self, refs=[], deleteNs=True):
+    if len(refs) == 0:
+        das.pprint("[mzAssetIO] No reference nodes provided")
+        return False
+    for ref in refs:
+        ns = cmds.referenceQuery(ref, ns=True)
+        try:
+            cmds.file(rfn = ref, ir=True)
+            das.pprint("[mzAssetIO] Import from reference node %s" % ref)
+            if deleteNs:
+                das.pprint("[mzAssetIO] Deleting namespace %s" % ns)
+                cmds.namespace(mv = (ns, ":"), f=True)
+                #cmds.namespace(force=True,rm=ns)
+        except:
+            das.pprint("[mzAssetIO] Could not import from references %s" % ",".join(refs))
+            return False
+    return True
