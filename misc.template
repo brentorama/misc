@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<tool>
+  <init>
+    <user value="brent" />
+    <host value="T5820-029" />
+    <date value="2019/07/16 12:00:44" />
+    <appFrom value="maya" />
+    <version value="1" />
+  </init>
+  <contents>
+    <name>keops</name>
+    <description />
+    <versioning>
+      <availability>
+        <target arch="all" platform="all">
+          0.0.1
+        </target>
+      </availability>
+      <stables>
+        <stable maj="0" min="0" patch="1" />
+      </stables>
+    </versioning>
+    <platform name="all">
+      <arch name="all">
+        <environment>
+        </environment>
+        <versions>
+        </versions>
+      </arch>
+    </platform>
+  </contents>
+</tool>
+
