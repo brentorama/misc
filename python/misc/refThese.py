@@ -24,13 +24,27 @@ def GetRefs(self, node, refs=None):
     for node in nodes:
         isRef = cmds.referenceQuery(node, inr=True)
         if isRef:
-            refs.add (cmds.referenceQuery(node, rfn=True))
+            ref = (cmds.referenceQuery(node, rfn=True)
+            refs.add(cmds.referenceQuery(ref, ns=True))
         else:
             children = cmds.listRelatives(node)
             refs = self.GetRefs(children, refs)
     return refs
 
+def GetNs(self, node, nms = None):
+    if nms == None:
+        nms = set([])
+    nodes = cmds.ls(node)
+    for node in nodes:
+        ns = node.split(":")
+        if len (ns) > 1:
+            nms.update(ns[:-1])
+        children = cmds.listRelatives(node, ad=True)
+        if children is not None:
+            nms = self.GetNs(children, nms)
+    return nms
 
+    
 def ImportRefs(self, refs=[], deleteNs=True):
     if len(refs) == 0:
         das.pprint("[mzAssetIO] No reference nodes provided")
